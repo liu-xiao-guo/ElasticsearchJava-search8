@@ -1,9 +1,9 @@
 import co.elastic.clients.elasticsearch.ElasticsearchAsyncClient;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch._types.query_dsl.QueryBuilders;
-import co.elastic.clients.elasticsearch._types.query_dsl.TermQuery;
+import co.elastic.clients.elasticsearch._types.query_dsl.*;
 import co.elastic.clients.elasticsearch.core.*;
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
@@ -17,6 +17,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
 public class ElasticsearchJava {
 
@@ -123,6 +124,37 @@ public class ElasticsearchJava {
             Product pd = hit.source();
             System.out.println(pd);
         }
+
+        // Search by product name
+        Query byName = MatchQuery.of(m -> m
+                .field("name")
+                .query("bag")
+        )._toQuery();
+
+        // Search by max price
+        Query byMaxPrice = RangeQuery.of(r -> r
+                .field("price")
+                .gte(JsonData.of(10))
+        )._toQuery();
+
+        // Combine name and price queries to search the product index
+        SearchResponse<Product> response = client.search(s -> s
+                        .index("products")
+                        .query(q -> q
+                                .bool(b -> b
+                                        .must(byName)
+                                        .should(byMaxPrice)
+                                )
+                        ),
+                Product.class
+        );
+
+        List<Hit<Product>> hits = response.hits().hits();
+        for (Hit<Product> hit: hits) {
+            Product product2 = hit.source();
+            System.out.println("Found product " + product2.getId() + ", score " + hit.score());
+        }
+
 
         // Creating aggregations
         SearchResponse<Void> search3 = client.search( b-> b
