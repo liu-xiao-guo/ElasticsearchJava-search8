@@ -3,6 +3,8 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.query_dsl.*;
 import co.elastic.clients.elasticsearch.core.*;
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.core.search.TotalHits;
+import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
 import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
@@ -97,6 +99,36 @@ public class ElasticsearchJava {
             System.out.println(pd);
         }
 
+        // Match search
+        String searchText = "bag";
+        SearchResponse<Product> response1 = client.search(s -> s
+                        .index("products")
+                        .query(q -> q
+                                .match(t -> t
+                                        .field("name")
+                                        .query(searchText)
+                                )
+                        ),
+                Product.class
+        );
+
+        TotalHits total1 = response1.hits().total();
+        boolean isExactResult = total1.relation() == TotalHitsRelation.Eq;
+
+        if (isExactResult) {
+            System.out.println("There are " + total1.value() + " results");
+        } else {
+            System.out.println("There are more than " + total1.value() + " results");
+        }
+
+        List<Hit<Product>> hits1 = response1.hits().hits();
+        for (Hit<Product> hit: hits1) {
+            Product pd2 = hit.source();
+            System.out.println("Found product " + pd2.getId() + ", score " + hit.score());
+        }
+
+
+        // Term search
         SearchResponse<Product> search1 = client.search(s -> s
                         .index("products")
                         .query(q -> q
