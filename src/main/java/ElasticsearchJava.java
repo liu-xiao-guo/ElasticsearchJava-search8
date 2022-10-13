@@ -18,7 +18,10 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 
+import javax.sound.midi.SysexMessage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 public class ElasticsearchJava {
@@ -60,17 +63,15 @@ public class ElasticsearchJava {
 
         // Index data to an index products
         Product product = new Product("abc", "Bag", 42);
-
         IndexRequest<Object> indexRequest = new IndexRequest.Builder<>()
                 .index("products")
                 .id("abc")
                 .document(product)
                 .build();
-
         client.index(indexRequest);
 
+        // Index another document into products
         Product product1 = new Product("efg", "Bag", 42);
-
         client.index(builder -> builder
                 .index("products")
                 .id(product1.getId())
@@ -94,10 +95,14 @@ public class ElasticsearchJava {
                         Product.class
                 );
 
+        // Print out the response
+        System.out.println("The found results are: ");
         for (Hit<Product> hit: search.hits().hits()) {
             Product pd = hit.source();
             System.out.println(pd);
         }
+
+        System.out.println("=================================================\n");
 
         // Match search
         String searchText = "bag";
@@ -121,12 +126,15 @@ public class ElasticsearchJava {
             System.out.println("There are more than " + total1.value() + " results");
         }
 
+        System.out.println("The scores are:");
+
         List<Hit<Product>> hits1 = response1.hits().hits();
         for (Hit<Product> hit: hits1) {
             Product pd2 = hit.source();
             System.out.println("Found product " + pd2.getId() + ", score " + hit.score());
         }
 
+        System.out.println("=================================================\n");
 
         // Term search
         SearchResponse<Product> search1 = client.search(s -> s
@@ -138,10 +146,16 @@ public class ElasticsearchJava {
                                 )),
                 Product.class);
 
+        System.out.println("The term search results are:");
+
         for (Hit<Product> hit: search1.hits().hits()) {
             Product pd = hit.source();
             System.out.println(pd);
         }
+
+        System.out.println("=================================================\n");
+
+        System.out.println("Splitting complex DSL ");
 
         // Splitting complex DSL
         TermQuery termQuery = TermQuery.of(t ->t.field("name").value("bag"));
@@ -157,6 +171,8 @@ public class ElasticsearchJava {
             System.out.println(pd);
         }
 
+        System.out.println("=================================================\n");
+        System.out.println("Compound bool search");
         // Search by product name
         Query byName = MatchQuery.of(m -> m
                 .field("name")
@@ -181,14 +197,18 @@ public class ElasticsearchJava {
                 Product.class
         );
 
+
         List<Hit<Product>> hits = response.hits().hits();
         for (Hit<Product> hit: hits) {
             Product product2 = hit.source();
             System.out.println("Found product " + product2.getId() + ", score " + hit.score());
         }
 
+        System.out.println("=================================================\n");
+        System.out.println("Creating an aggregations");
 
         // Creating aggregations
+        // Void.class here means no documents in the response
         SearchResponse<Void> search3 = client.search( b-> b
                 .index("products")
                 .size(0)
@@ -209,5 +229,43 @@ public class ElasticsearchJava {
                 .docCount();
 
         System.out.println("doc count: " + firstBucketCount);
+
+        System.out.println("=================================================\n");
+        System.out.println("Creating an aggregation from JSON");
+
+        String aggstr = "\n" +
+           " { \n" +
+           "   \"size\": 0, \n" +
+           "   \"aggs\": { \n" +
+           "     \"price-histo\": {  \n" +
+           "       \"histogram\": { \n" +
+           "         \"field\": \"price\", \n" +
+           "         \"interval\": 20 \n" +
+           "       } \n" +
+           "     } \n" +
+           "   } \n" +
+           " } ";
+
+        System.out.println("agg is: " + aggstr  );
+
+        InputStream agg = new ByteArrayInputStream(aggstr.getBytes());
+        SearchResponse<Void> searchAgg = client
+                .search(b -> b
+                        .index("products")
+                        .withJson(agg),
+                        Void.class
+                );
+
+        firstBucketCount = searchAgg.aggregations()
+                .get("price-histo")
+                .histogram()
+                .buckets().array()
+                .get(0)
+                .docCount();
+
+        System.out.println("doc count: " + firstBucketCount);
+
+        System.out.println("=================================================\n");
+
     }
 }
